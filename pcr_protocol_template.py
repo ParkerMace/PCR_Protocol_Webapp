@@ -22,6 +22,7 @@ requirements = {
 CONFIG = {
     "replicates": 1,
     "layout_mode": "sample_first",
+    "selected_preset": "Original script / current lab starting point",
 
     "volumes": {
         "master_mix_ul": 23.0,
@@ -164,6 +165,7 @@ def run(protocol: protocol_api.ProtocolContext):
     protocol.comment("=== PCR SETUP SUMMARY ===")
     protocol.comment(f"Total reactions: {len(reaction_assignments)}")
     protocol.comment(f"Layout mode: {CONFIG['layout_mode']}")
+    protocol.comment(f"PCR preset: {CONFIG.get('selected_preset', 'custom')}")
     reaction_volume = volumes["master_mix_ul"] + volumes["primer_ul"] + volumes["dna_ul"]
     protocol.comment(f"Reaction volume: {reaction_volume:.1f} uL")
 

@@ -23,6 +23,7 @@ st.caption(
 DEFAULT_CONFIG = {
     "replicates": 1,
     "layout_mode": "sample_first",
+    "selected_preset": "Original script / current lab starting point",
     "volumes": {
         "master_mix_ul": 23.0,
         "primer_ul": 1.0,
@@ -82,6 +83,101 @@ DEFAULT_CONFIG = {
 
 
 WELL_ORDER_96 = [f"{row}{col}" for col in range(1, 13) for row in "ABCDEFGH"]
+
+
+PCR_PRESETS = {
+    "Original script / current lab starting point": {
+        "source_note": "Matches the uploaded script's starting PCR profile.",
+        "thermocycler": {
+            "lid_temp_c": 105,
+            "initial_denaturation_temp_c": 94,
+            "initial_denaturation_seconds": 90,
+            "denature_temp_c": 94,
+            "denature_seconds": 90,
+            "anneal_temp_c": 56,
+            "anneal_seconds": 45,
+            "extend_temp_c": 59,
+            "extend_seconds": 60,
+            "cycles": 30,
+            "final_extension_temp_c": 68,
+            "final_extension_seconds": 300,
+            "final_hold_temp_c": 4,
+        },
+    },
+    "NEB Taq / routine PCR starting point": {
+        "source_note": "General NEB Taq-style starting point. NEB commonly recommends 25-35 cycles, 68 C extension, about 1 min/kb, and a 5 min final extension.",
+        "thermocycler": {
+            "lid_temp_c": 105,
+            "initial_denaturation_temp_c": 95,
+            "initial_denaturation_seconds": 30,
+            "denature_temp_c": 95,
+            "denature_seconds": 30,
+            "anneal_temp_c": 55,
+            "anneal_seconds": 30,
+            "extend_temp_c": 68,
+            "extend_seconds": 60,
+            "cycles": 30,
+            "final_extension_temp_c": 68,
+            "final_extension_seconds": 300,
+            "final_hold_temp_c": 4,
+        },
+    },
+    "NEB OneTaq / colony PCR starting point": {
+        "source_note": "General NEB OneTaq colony-PCR-style starting point. Initial denaturation is lengthened for cell lysis.",
+        "thermocycler": {
+            "lid_temp_c": 105,
+            "initial_denaturation_temp_c": 94,
+            "initial_denaturation_seconds": 300,
+            "denature_temp_c": 94,
+            "denature_seconds": 30,
+            "anneal_temp_c": 55,
+            "anneal_seconds": 30,
+            "extend_temp_c": 68,
+            "extend_seconds": 60,
+            "cycles": 30,
+            "final_extension_temp_c": 68,
+            "final_extension_seconds": 300,
+            "final_hold_temp_c": 4,
+        },
+    },
+    "NEB Q5 high-fidelity starting point": {
+        "source_note": "General NEB Q5-style starting point. Q5 uses 98 C denaturation and short denaturation steps.",
+        "thermocycler": {
+            "lid_temp_c": 105,
+            "initial_denaturation_temp_c": 98,
+            "initial_denaturation_seconds": 30,
+            "denature_temp_c": 98,
+            "denature_seconds": 10,
+            "anneal_temp_c": 62,
+            "anneal_seconds": 20,
+            "extend_temp_c": 72,
+            "extend_seconds": 30,
+            "cycles": 30,
+            "final_extension_temp_c": 72,
+            "final_extension_seconds": 120,
+            "final_hold_temp_c": 4,
+        },
+    },
+    "Two-step PCR starting point for high-Tm primers": {
+        "source_note": "Starting point for high-Tm primers where annealing and extension are combined. The exported protocol still uses the same three-step function, with anneal and extension temperatures set the same.",
+        "thermocycler": {
+            "lid_temp_c": 105,
+            "initial_denaturation_temp_c": 98,
+            "initial_denaturation_seconds": 30,
+            "denature_temp_c": 98,
+            "denature_seconds": 10,
+            "anneal_temp_c": 72,
+            "anneal_seconds": 30,
+            "extend_temp_c": 72,
+            "extend_seconds": 30,
+            "cycles": 30,
+            "final_extension_temp_c": 72,
+            "final_extension_seconds": 120,
+            "final_hold_temp_c": 4,
+        },
+    },
+}
+
 
 
 def parse_sample_table(text: str):
@@ -196,6 +292,13 @@ def validate_config(config, reaction_df):
             "Use the safer strategy if contamination risk is a concern."
         )
 
+    preset = config.get("selected_preset", "")
+    if "Q5" in preset and config["thermocycler"]["extend_temp_c"] != 72:
+        warnings.append("Q5-style presets usually use 72 °C extension. Confirm this edited value is intentional.")
+
+    if "Taq" in preset and config["thermocycler"]["extend_temp_c"] != 68:
+        warnings.append("Taq/OneTaq-style presets commonly use 68 °C extension. Confirm this edited value is intentional.")
+
     required_mm = (
         total_rxns
         * config["volumes"]["master_mix_ul"]
@@ -251,9 +354,21 @@ with st.sidebar:
     overage = st.number_input("Master mix overage (%)", min_value=0, max_value=50, value=10, step=1)
 
     st.divider()
-    st.subheader("Thermocycler")
-    lid_temp_c = st.number_input("Heated lid temperature (°C)", min_value=0, max_value=120, value=105, step=1)
-    cycles = st.number_input("Cycles", min_value=1, max_value=50, value=30, step=1)
+    st.subheader("Thermocycler preset")
+    selected_preset = st.selectbox(
+        "Literature / lab preset",
+        list(PCR_PRESETS.keys()),
+        index=0,
+        help=(
+            "Presets are editable starting points. Annealing temperature should be checked against primer Tm, "
+            "and extension time should be adjusted for expected amplicon length and polymerase."
+        ),
+    )
+    preset_thermo = PCR_PRESETS[selected_preset]["thermocycler"]
+    st.caption(PCR_PRESETS[selected_preset]["source_note"])
+
+    lid_temp_c = st.number_input("Heated lid temperature (°C)", min_value=0, max_value=120, value=preset_thermo["lid_temp_c"], step=1)
+    cycles = st.number_input("Cycles", min_value=1, max_value=50, value=preset_thermo["cycles"], step=1)
 
 tabs = st.tabs(["Samples & primers", "Thermocycler", "Preview & validation", "Export"])
 
@@ -302,29 +417,92 @@ with tabs[0]:
 
 
 with tabs[1]:
+    st.info(
+        "Preset loaded: "
+        + selected_preset
+        + ". You can edit any value below before exporting. "
+        + "Annealing temperature should match primer Tm, and extension time should match amplicon length."
+    )
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        initial_denaturation_temp_c = st.number_input("Initial denaturation temp (°C)", value=94, min_value=0, max_value=120)
-        initial_denaturation_seconds = st.number_input("Initial denaturation time (sec)", value=90, min_value=0, max_value=600)
+        initial_denaturation_temp_c = st.number_input(
+            "Initial denaturation temp (°C)",
+            value=preset_thermo["initial_denaturation_temp_c"],
+            min_value=0,
+            max_value=120,
+        )
+        initial_denaturation_seconds = st.number_input(
+            "Initial denaturation time (sec)",
+            value=preset_thermo["initial_denaturation_seconds"],
+            min_value=0,
+            max_value=600,
+        )
 
     with col2:
-        denature_temp_c = st.number_input("Denature temp (°C)", value=94, min_value=0, max_value=120)
-        denature_seconds = st.number_input("Denature time (sec)", value=90, min_value=0, max_value=600)
-        anneal_temp_c = st.number_input("Anneal temp (°C)", value=56, min_value=0, max_value=120)
-        anneal_seconds = st.number_input("Anneal time (sec)", value=45, min_value=0, max_value=600)
+        denature_temp_c = st.number_input(
+            "Denature temp (°C)",
+            value=preset_thermo["denature_temp_c"],
+            min_value=0,
+            max_value=120,
+        )
+        denature_seconds = st.number_input(
+            "Denature time (sec)",
+            value=preset_thermo["denature_seconds"],
+            min_value=0,
+            max_value=600,
+        )
+        anneal_temp_c = st.number_input(
+            "Anneal temp (°C)",
+            value=preset_thermo["anneal_temp_c"],
+            min_value=0,
+            max_value=120,
+        )
+        anneal_seconds = st.number_input(
+            "Anneal time (sec)",
+            value=preset_thermo["anneal_seconds"],
+            min_value=0,
+            max_value=600,
+        )
 
     with col3:
-        extend_temp_c = st.number_input("Extension temp (°C)", value=59, min_value=0, max_value=120)
-        extend_seconds = st.number_input("Extension time (sec)", value=60, min_value=0, max_value=600)
-        final_extension_temp_c = st.number_input("Final extension temp (°C)", value=68, min_value=0, max_value=120)
-        final_extension_seconds = st.number_input("Final extension time (sec)", value=300, min_value=0, max_value=1800)
-        final_hold_temp_c = st.number_input("Final hold temp (°C)", value=4, min_value=0, max_value=25)
+        extend_temp_c = st.number_input(
+            "Extension temp (°C)",
+            value=preset_thermo["extend_temp_c"],
+            min_value=0,
+            max_value=120,
+        )
+        extend_seconds = st.number_input(
+            "Extension time (sec)",
+            value=preset_thermo["extend_seconds"],
+            min_value=0,
+            max_value=600,
+        )
+        final_extension_temp_c = st.number_input(
+            "Final extension temp (°C)",
+            value=preset_thermo["final_extension_temp_c"],
+            min_value=0,
+            max_value=120,
+        )
+        final_extension_seconds = st.number_input(
+            "Final extension time (sec)",
+            value=preset_thermo["final_extension_seconds"],
+            min_value=0,
+            max_value=1800,
+        )
+        final_hold_temp_c = st.number_input(
+            "Final hold temp (°C)",
+            value=preset_thermo["final_hold_temp_c"],
+            min_value=0,
+            max_value=25,
+        )
 
 
 config = json.loads(json.dumps(DEFAULT_CONFIG))
 config["replicates"] = int(replicates)
 config["layout_mode"] = layout_mode
+config["selected_preset"] = selected_preset
 config["volumes"]["master_mix_ul"] = float(master_mix_ul)
 config["volumes"]["primer_ul"] = float(primer_ul)
 config["volumes"]["dna_ul"] = float(dna_ul)

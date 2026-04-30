@@ -43,3 +43,16 @@ The exported OT-2 protocol includes:
 - Optional grouped primer transfer if you want fewer tips.
 
 The template intentionally supports one 96-well PCR plate to avoid silent multi-plate assignment errors. Extend deliberately if you need multi-plate mode.
+
+
+## PCR presets added
+
+The GUI now includes editable PCR starting presets:
+
+- Original script / current lab starting point
+- NEB Taq / routine PCR starting point
+- NEB OneTaq / colony PCR starting point
+- NEB Q5 high-fidelity starting point
+- Two-step PCR starting point for high-Tm primers
+
+These are starting points, not final assay guarantees. Always adjust annealing temperature based on primer Tm and extension time based on expected amplicon length/polymerase recommendations.
